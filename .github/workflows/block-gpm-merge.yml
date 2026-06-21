@@ -1,0 +1,76 @@
+name: block-gpm-merge
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject GPM branch by name
+        if: contains(github.head_ref, 'giraffe-pricing-model')
+        run: |
+          echo "::error::GPM service branch must never merge into main. This check fails by design."
+          exit 1
+
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject GPM code reintroduction
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch origin "$BASE_REF" --depth=1
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" HEAD)
+
+          FAILED=0
+
+          # --- Path check ---
+          # Detect banned file paths regardless of content (empty files would
+          # slip through a content-only scan). Uses --name-only so the file
+          # header lines that grep -v '+++' would strip are never involved.
+          CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" HEAD -- . ':(exclude).github/' || true)
+
+          BANNED_PATHS=(
+            "src/gpm/"
+            "api/routes/gpm\.py"
+          )
+
+          for pat in "${BANNED_PATHS[@]}"; do
+            if echo "$CHANGED_FILES" | grep -qE "$pat"; then
+              echo "::error::PR adds or reintroduces banned GPM path: $pat"
+              FAILED=1
+            fi
+          done
+
+          # --- Content check ---
+          # Scan newly added lines for banned strings.
+          # || true prevents grep from exiting non-zero when a PR only deletes
+          # lines or only modifies .github/ (empty ADDED is valid and safe).
+          ADDED=$(git diff "$MERGE_BASE" HEAD -- . ':(exclude).github/' \
+            | grep '^+' | grep -v '^+++' || true)
+
+          BANNED_CONTENT=(
+            "GPM_SERVICE_URL"
+            "GPM_SERVICE_API_KEY"
+            "src\.gpm"
+            "/api/gpm"
+            "gpm_router"
+            "submit_order_to_buffer"
+            "push_order_to_gpm_buffer"
+          )
+
+          for pat in "${BANNED_CONTENT[@]}"; do
+            if echo "$ADDED" | grep -qE "$pat"; then
+              echo "::error::PR adds or reintroduces banned GPM content: $pat"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            exit 1
+          fi
+          echo "GPM code scan passed — no banned patterns found in diff."
