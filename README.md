@@ -4,7 +4,7 @@
 
 Giraffe JP / ABCDYi Japan is a service-led made-to-order formalwear platform for women in Japan.
 
-It is designed for formal dresses, women’s suits, bridalwear, light wedding dresses, reception dresses, and other formal-occasion apparel where customers need more than a product listing: they need guided measurement, structured confirmation, production follow-up, quality evidence review, local model try-on, segmented logistics tracking, and human-confirmed delivery.
+It is designed for formal dresses, women's suits, bridalwear, light wedding dresses, reception dresses, and other formal-occasion apparel where customers need more than a product listing: they need guided measurement, structured confirmation, production follow-up, quality evidence review, local model try-on, segmented logistics tracking, and human-confirmed delivery.
 
 Giraffe JP is built on the abcdYi apparel execution foundation and extends it with a Japan-focused C2B2M service layer.
 
@@ -33,7 +33,7 @@ The customer does not need to manage production details alone. Giraffe JP turns 
 
 ## Why Giraffe JP Exists
 
-Women’s formalwear orders are high-context purchases.
+Women's formalwear orders are high-context purchases.
 
 A customer ordering a dress, suit, bridalwear item, or reception dress often needs help with:
 
@@ -93,7 +93,7 @@ Industrial Execution Graph record
 
 ## Role Model
 
-Giraffe JP uses Giraffe Agent’s edge-based role logic.
+Giraffe JP uses Giraffe Agent's edge-based role logic.
 
 ### Edge 1 — Customer to Giraffe JP
 
@@ -202,7 +202,7 @@ Local model try-on is a standard Giraffe JP service.
 
 Before final delivery, the garment can be tried on by a local model partner with comparable body parameters. The system records try-on photos/videos, fit notes, customer-visible reports, and customer confirmation.
 
-This service is part of Giraffe JP’s trust layer and should be integrated with the evidence repository and service-node engine.
+This service is part of Giraffe JP's trust layer and should be integrated with the evidence repository and service-node engine.
 
 ---
 
@@ -256,27 +256,48 @@ No real external API credentials are required for the first backend phase.
 
 ## Current Backend Status
 
-This repository is in active backend transition from the base abcdYi apparel execution system to the Giraffe JP service-led C2B2M layer.
-
-Currently implemented Giraffe JP backend core:
+**Service Core (Iteration 01)**
 
 - `GiraffeJPServiceNode`
 - `GiraffeJPConfirmationRequest`
 - `GiraffeJPCustomerServiceTask`
 - service-node API routes
-- confirmation-request API routes
-- customer-service task API routes
+- confirmation-request API routes (confirm, reject, escalate)
+- customer-service task API routes (start, complete, escalate)
 - P0 blocking confirmation behavior
 - tenant isolation tests
 - execution graph event emission for service actions
-- additive Alembic migration for the service core
+- Alembic migration `b2c3d4e5f6a7` (service-core tables)
+
+**Iteration 02 — Message Category Auto-Send Permissions**
+
+- `GiraffeJPMessageCategoryPermission`
+- 22 default categories (8 CUSTOMER, 7 SUPPLIER, 7 MODEL_PARTNER)
+- `is_auto_send_allowed()` — unknown categories default to `auto_send=False` (spec rule 7)
+- message category permission routes (seed, list, get, patch)
+- execution graph events: `MESSAGE_CATEGORY_PERMISSIONS_SEEDED`, `MESSAGE_CATEGORY_PERMISSION_UPDATED`
+
+**Iteration 03 — Web Dialog and Email Communication Layer**
+
+- `GiraffeJPConversationThread`, `GiraffeJPMessage`, `GiraffeJPOutboundMessageDraft`, `GiraffeJPMessageDeliveryLog`
+- conversation thread routes (create, list, get)
+- inbound message recording
+- outbound draft creation with auto-send enforcement
+- human approve/reject flow (HTTP 400 on invalid state)
+- simulated delivery logging
+- execution graph events: 7 communication event types
+
+**Iteration 04 — Formalwear C2B2M Order Extension**
+
+- `GiraffeJPFormalwearOrderProfile`, `GiraffeJPC2B2MRoleEdge`
+- formalwear profile routes (create, get, patch)
+- automatic `hollow_to_hem_required` detection from garment category
+- C2B2M role edge initialization (idempotent, 4 default edges per project)
+- execution graph events: `FORMALWEAR_ORDER_PROFILE_CREATED`, `FORMALWEAR_ORDER_PROFILE_UPDATED`, `C2B2M_ROLE_EDGE_CREATED`, `C2B2M_DEFAULT_EDGES_INITIALIZED`
+- Alembic migration `d4e5f6a7b8c9` (iter 02/03/04 tables, chained after service-core)
 
 Planned Giraffe JP modules:
 
-- message category auto-send permissions
-- web dialog and email conversation records
-- formalwear order profiles
-- C2B2M role edges
 - service node automation templates
 - QC raw evidence repository
 - measurement profile interface
@@ -286,7 +307,6 @@ Planned Giraffe JP modules:
 - marketplace supplier abstraction
 - Giraffe JP supplier memory extension
 - integrated Giraffe JP E2E readiness scripts
-- Giraffe JP API and operations documentation
 
 ---
 
@@ -325,7 +345,7 @@ All routes except `/health` and `/api/auth/*` require:
 Authorization: Bearer <jwt_token>
 ```
 
-Current Giraffe JP service-core routes:
+Giraffe JP service-core routes:
 
 | Method | Path | Description |
 |---|---|---|
@@ -344,6 +364,38 @@ Current Giraffe JP service-core routes:
 | POST | `/api/giraffe-jp/customer-service/tasks/{id}/start` | Start a task |
 | POST | `/api/giraffe-jp/customer-service/tasks/{id}/complete` | Complete a task |
 | POST | `/api/giraffe-jp/customer-service/tasks/{id}/escalate` | Escalate a task |
+
+Iteration 02 — Message category permissions:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/giraffe-jp/permissions/seed-defaults` | Seed 22 default message category permissions |
+| GET | `/api/giraffe-jp/permissions` | List message category permissions |
+| GET | `/api/giraffe-jp/permissions/{id}` | Get a permission |
+| PATCH | `/api/giraffe-jp/permissions/{id}` | Update auto-send setting |
+
+Iteration 03 — Conversations and outbound drafts:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/giraffe-jp/conversations` | Open a conversation thread |
+| GET | `/api/giraffe-jp/conversations` | List conversation threads |
+| GET | `/api/giraffe-jp/conversations/{id}` | Get a conversation thread |
+| POST | `/api/giraffe-jp/conversations/{id}/messages/inbound` | Record inbound message |
+| POST | `/api/giraffe-jp/conversations/{id}/outbound-drafts` | Create outbound draft (auto-send or pending) |
+| GET | `/api/giraffe-jp/conversations/{id}/outbound-drafts` | List outbound drafts |
+| POST | `/api/giraffe-jp/outbound-drafts/{id}/approve` | Approve a pending draft |
+| POST | `/api/giraffe-jp/outbound-drafts/{id}/reject` | Reject a pending draft |
+
+Iteration 04 — Formalwear and C2B2M:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/giraffe-jp/projects/{id}/formalwear-profile` | Create formalwear order profile |
+| GET | `/api/giraffe-jp/projects/{id}/formalwear-profile` | Get formalwear profile |
+| PATCH | `/api/giraffe-jp/projects/{id}/formalwear-profile` | Update formalwear profile |
+| POST | `/api/giraffe-jp/projects/{id}/c2b2m-edges/initialize` | Initialize default C2B2M role edges |
+| GET | `/api/giraffe-jp/projects/{id}/c2b2m-edges` | List C2B2M role edges |
 
 Core abcdYi routes remain available for projects, participants, dynamic forms, matching, RFQs, decision packets, orders, QC, logistics, and execution graph queries.
 
@@ -414,39 +466,23 @@ Expected output:
 GIRAFFE APPAREL & TEXTILE V1 ACCEPTANCE: PASS
 ```
 
-Existing 5x readiness verification:
-
-```bash
-BASE_URL=http://localhost:8000 uv run python scripts/verify_v1_product_readiness_5x.py
-```
-
 ---
 
 ## Documentation
 
-Current and planned documentation:
-
-- `docs/giraffe_jp_backend_integration_plan.md`
-- `docs/api_reference.md`
-- `docs/user_manual.md`
-- `docs/admin_manual.md`
-- `docs/deployment_guide.md`
-- `docs/patent_alignment_matrix.md`
-- `docs/workflow_overview.md`
-- `docs/product_scope.md`
-- `docs/acceptance_criteria_v1.md`
-
-Planned Giraffe JP documentation:
-
-- Giraffe JP service backend
-- Giraffe JP API reference
-- measurement interface
-- digital human profile interface
-- local model try-on service
-- QC evidence repository
-- segmented logistics
-- marketplace supplier layer
-- supplier memory extension
+| Document | Description |
+|---|---|
+| `docs/giraffe_jp_backend_integration_plan.md` | Giraffe JP integration planning doc |
+| `docs/giraffe_jp_service_backend.md` | Giraffe JP backend architecture and business rules |
+| `docs/giraffe_jp_api_reference.md` | Full Giraffe JP API reference |
+| `docs/api_reference.md` | abcdYi core API reference |
+| `docs/user_manual.md` | User guide |
+| `docs/admin_manual.md` | Admin and operations guide |
+| `docs/deployment_guide.md` | Deployment guide |
+| `docs/patent_alignment_matrix.md` | Patent unit mapping |
+| `docs/workflow_overview.md` | Workflow documentation |
+| `docs/product_scope.md` | Product scope and positioning |
+| `docs/acceptance_criteria_v1.md` | V1 acceptance criteria |
 
 ---
 
