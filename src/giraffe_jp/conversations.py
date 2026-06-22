@@ -6,12 +6,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.giraffe_jp import (
+    GiraffeJPConfirmationRequest,
     GiraffeJPConversationThread,
     GiraffeJPCustomerServiceTask,
     GiraffeJPMessage,
     GiraffeJPMessageDeliveryLog,
     GiraffeJPOutboundMessageDraft,
+    GiraffeJPServiceNode,
 )
+from src.db.models.order import Order
+from src.db.models.participant import Participant
+from src.db.models.project import Project
 from src.execution_graph.event_types import (
     CONVERSATION_THREAD_CREATED,
     INBOUND_MESSAGE_RECORDED,
@@ -39,12 +44,83 @@ async def _get_thread(
     return thread
 
 
+async def _validate_project_tenant(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+) -> Project:
+    project = await db.get(Project, project_id)
+    if not project or project.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="project_id not found for this tenant")
+    return project
+
+
+async def _validate_order_scope(
+    db: AsyncSession,
+    order_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    project_id: uuid.UUID | None = None,
+) -> Order:
+    """Validate order exists and belongs to tenant (via project). Optionally checks project match."""
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=422, detail="order_id not found")
+    project = await db.get(Project, order.project_id)
+    if not project or project.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="order_id not found for this tenant")
+    if project_id is not None and order.project_id != project_id:
+        raise HTTPException(status_code=422, detail="order_id does not belong to the specified project")
+    return order
+
+
+async def _validate_participant_tenant(
+    db: AsyncSession,
+    participant_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+) -> Participant:
+    participant = await db.get(Participant, participant_id)
+    if not participant or participant.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="participant_id not found for this tenant")
+    return participant
+
+
+async def _validate_service_node_tenant(
+    db: AsyncSession,
+    service_node_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+) -> GiraffeJPServiceNode:
+    node = await db.get(GiraffeJPServiceNode, service_node_id)
+    if not node or node.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="service_node_id not found for this tenant")
+    return node
+
+
+async def _validate_confirmation_request_tenant(
+    db: AsyncSession,
+    confirmation_request_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+) -> GiraffeJPConfirmationRequest:
+    cr = await db.get(GiraffeJPConfirmationRequest, confirmation_request_id)
+    if not cr or cr.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="confirmation_request_id not found for this tenant")
+    return cr
+
+
 async def create_conversation_thread(
     db: AsyncSession,
     body: ConversationThreadCreate,
     tenant_id: uuid.UUID,
     user_id: uuid.UUID,
 ) -> GiraffeJPConversationThread:
+    if body.project_id is not None:
+        await _validate_project_tenant(db, body.project_id, tenant_id)
+
+    if body.order_id is not None:
+        await _validate_order_scope(db, body.order_id, tenant_id, body.project_id)
+
+    if body.participant_id is not None:
+        await _validate_participant_tenant(db, body.participant_id, tenant_id)
+
     thread = GiraffeJPConversationThread(
         tenant_id=tenant_id,
         project_id=body.project_id,
@@ -150,6 +226,39 @@ async def create_outbound_draft(
     user_id: uuid.UUID,
 ) -> GiraffeJPOutboundMessageDraft:
     thread = await _get_thread(db, body.thread_id, tenant_id)
+
+    node = None
+    cr = None
+
+    if body.service_node_id is not None:
+        node = await _validate_service_node_tenant(db, body.service_node_id, tenant_id)
+
+    if body.confirmation_request_id is not None:
+        cr = await _validate_confirmation_request_tenant(db, body.confirmation_request_id, tenant_id)
+
+    # Cross-reference: confirmation must point to the same service node
+    if node is not None and cr is not None:
+        if cr.service_node_id is not None and cr.service_node_id != node.id:
+            raise HTTPException(
+                status_code=422,
+                detail="confirmation_request_id does not belong to the specified service_node_id",
+            )
+
+    # Scope compatibility: service node project must match thread project (when both set)
+    if node is not None and node.project_id is not None and thread.project_id is not None:
+        if node.project_id != thread.project_id:
+            raise HTTPException(
+                status_code=422,
+                detail="service_node_id project does not match thread project",
+            )
+
+    # Scope compatibility: confirmation project must match thread project (when both set)
+    if cr is not None and cr.project_id is not None and thread.project_id is not None:
+        if cr.project_id != thread.project_id:
+            raise HTTPException(
+                status_code=422,
+                detail="confirmation_request_id project does not match thread project",
+            )
 
     auto_send = await is_auto_send_allowed(db, tenant_id, body.category_id, body.channel)
 

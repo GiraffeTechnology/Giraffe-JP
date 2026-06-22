@@ -1,7 +1,13 @@
 """API tests for conversation thread and outbound draft endpoints."""
 import uuid
 
-from src.db.models.giraffe_jp import GiraffeJPMessageCategoryPermission
+from src.db.models.giraffe_jp import (
+    GiraffeJPMessageCategoryPermission,
+    GiraffeJPServiceNode,
+    GiraffeJPConfirmationRequest,
+)
+from src.db.models.participant import Participant
+from src.db.models.project import Project
 from src.db.models.tenant import Tenant
 
 
@@ -243,3 +249,137 @@ async def test_tenant_isolation_conversations(auth_client, db):
 
     # Check that no threads from the other_tenant appear (they have none, so this just validates listing)
     assert len(resp.json()) >= 1
+
+
+# ── Scope validation tests ────────────────────────────────────────────────────
+
+async def test_cross_tenant_project_id_rejected(auth_client, seed_user, db):
+    """project_id belonging to a different tenant must be rejected (422)."""
+    # Use the seed_user's id as created_by to satisfy the FK constraint
+    real_user_id = uuid.UUID(seed_user["user_id"])
+    other_tenant = Tenant(name="Other Tenant", slug=f"other-{uuid.uuid4().hex[:8]}")
+    db.add(other_tenant)
+    await db.flush()
+    other_project = Project(tenant_id=other_tenant.id, title="Other Project", created_by=real_user_id)
+    db.add(other_project)
+    await db.commit()
+
+    resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"thread_type": "CUSTOMER", "channel": "WEB_DIALOG", "project_id": str(other_project.id)},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_cross_tenant_order_id_rejected(auth_client, seed_user, seed_project, db):
+    """order_id whose project belongs to a different tenant must be rejected (422)."""
+    from src.db.models.order import Order as OrderModel
+
+    real_user_id = uuid.UUID(seed_user["user_id"])
+    other_tenant = Tenant(name="Other Tenant2", slug=f"other-{uuid.uuid4().hex[:8]}")
+    db.add(other_tenant)
+    await db.flush()
+    other_project = Project(tenant_id=other_tenant.id, title="Other Project2", created_by=real_user_id)
+    db.add(other_project)
+    await db.flush()
+    other_order = OrderModel(project_id=other_project.id)
+    db.add(other_order)
+    await db.commit()
+
+    resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={
+            "thread_type": "CUSTOMER",
+            "channel": "WEB_DIALOG",
+            "project_id": seed_project["id"],
+            "order_id": str(other_order.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_cross_tenant_participant_id_rejected(auth_client, db):
+    """participant_id belonging to a different tenant must be rejected (422)."""
+    other_tenant = Tenant(name="Other Tenant3", slug=f"other-{uuid.uuid4().hex[:8]}")
+    db.add(other_tenant)
+    await db.flush()
+    other_participant = Participant(tenant_id=other_tenant.id, name="Other Corp")
+    db.add(other_participant)
+    await db.commit()
+
+    resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={
+            "thread_type": "SUPPLIER",
+            "channel": "EMAIL",
+            "participant_id": str(other_participant.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_cross_tenant_service_node_id_rejected(auth_client, db, seed_user):
+    """service_node_id belonging to a different tenant must be rejected (422)."""
+    other_tenant = Tenant(name="Other Tenant4", slug=f"other-{uuid.uuid4().hex[:8]}")
+    db.add(other_tenant)
+    await db.flush()
+    other_node = GiraffeJPServiceNode(
+        tenant_id=other_tenant.id,
+        node_type="MEASUREMENT_REQUIRED",
+        status="PENDING",
+        priority="P2",
+    )
+    db.add(other_node)
+    await db.commit()
+
+    thread = await _create_thread(auth_client)
+    resp = await auth_client.post(
+        "/api/giraffe-jp/outbound-drafts",
+        json={
+            "thread_id": thread["id"],
+            "category_id": "CUSTOMER_ORDER_RECEIVED_UPDATE",
+            "message_text": "Hello.",
+            "channel": "WEB_DIALOG",
+            "service_node_id": str(other_node.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_cross_tenant_confirmation_request_id_rejected(auth_client, db):
+    """confirmation_request_id belonging to a different tenant must be rejected (422)."""
+    other_tenant = Tenant(name="Other Tenant5", slug=f"other-{uuid.uuid4().hex[:8]}")
+    db.add(other_tenant)
+    await db.flush()
+    # ConfirmationRequest requires a service_node_id FK — create a node first
+    other_node = GiraffeJPServiceNode(
+        tenant_id=other_tenant.id,
+        node_type="MEASUREMENT_REQUIRED",
+        status="PENDING",
+        priority="P2",
+    )
+    db.add(other_node)
+    await db.flush()
+    other_cr = GiraffeJPConfirmationRequest(
+        tenant_id=other_tenant.id,
+        service_node_id=other_node.id,
+        confirmation_type="PRICE_APPROVAL",
+        priority="P2",
+        target_party_type="CUSTOMER",
+        channel="WEB_DIALOG",
+    )
+    db.add(other_cr)
+    await db.commit()
+
+    thread = await _create_thread(auth_client)
+    resp = await auth_client.post(
+        "/api/giraffe-jp/outbound-drafts",
+        json={
+            "thread_id": thread["id"],
+            "category_id": "CUSTOMER_ORDER_RECEIVED_UPDATE",
+            "message_text": "Hello.",
+            "channel": "WEB_DIALOG",
+            "confirmation_request_id": str(other_cr.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text

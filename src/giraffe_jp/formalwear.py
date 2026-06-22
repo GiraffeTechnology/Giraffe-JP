@@ -8,6 +8,7 @@ from src.db.models.giraffe_jp import (
     GiraffeJPFormalwearOrderProfile,
     GiraffeJPC2B2MRoleEdge,
 )
+from src.db.models.order import Order
 from src.db.models.project import Project
 from src.execution_graph.event_types import (
     C2B2M_DEFAULT_EDGES_INITIALIZED,
@@ -35,6 +36,24 @@ async def _validate_project_tenant(
     return project
 
 
+async def _validate_order_scope(
+    db: AsyncSession,
+    order_id: uuid.UUID,
+    tenant_id: uuid.UUID,
+    project_id: uuid.UUID | None = None,
+) -> Order:
+    """Validate order exists and belongs to tenant (via project). Optionally checks project match."""
+    order = await db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=422, detail="order_id not found")
+    project = await db.get(Project, order.project_id)
+    if not project or project.tenant_id != tenant_id:
+        raise HTTPException(status_code=422, detail="order_id not found for this tenant")
+    if project_id is not None and order.project_id != project_id:
+        raise HTTPException(status_code=422, detail="order_id does not belong to the specified project")
+    return order
+
+
 async def create_formalwear_order_profile(
     db: AsyncSession,
     body: FormalwearOrderProfileCreate,
@@ -42,6 +61,9 @@ async def create_formalwear_order_profile(
     user_id: uuid.UUID,
 ) -> GiraffeJPFormalwearOrderProfile:
     await _validate_project_tenant(db, body.project_id, tenant_id)
+
+    if body.order_id is not None:
+        await _validate_order_scope(db, body.order_id, tenant_id, body.project_id)
 
     data = body.model_dump()
 
@@ -102,6 +124,10 @@ async def update_formalwear_order_profile(
     user_id: uuid.UUID,
 ) -> GiraffeJPFormalwearOrderProfile:
     profile = await get_formalwear_order_profile(db, profile_id, tenant_id)
+
+    if body.order_id is not None:
+        await _validate_order_scope(db, body.order_id, tenant_id, profile.project_id)
+
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(profile, field, value)
     await db.flush()
@@ -124,6 +150,10 @@ async def create_c2b2m_role_edge(
     user_id: uuid.UUID,
 ) -> GiraffeJPC2B2MRoleEdge:
     await _validate_project_tenant(db, body.project_id, tenant_id)
+
+    if body.order_id is not None:
+        await _validate_order_scope(db, body.order_id, tenant_id, body.project_id)
+
     data = body.model_dump()
     edge = GiraffeJPC2B2MRoleEdge(tenant_id=tenant_id, **data)
     db.add(edge)
@@ -168,22 +198,55 @@ async def get_c2b2m_role_edge(
     return edge
 
 
+async def _find_default_customer_edge(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    project_id: uuid.UUID,
+    order_id: uuid.UUID | None,
+) -> GiraffeJPC2B2MRoleEdge | None:
+    """Find the customer→giraffe_jp DEFAULT edge for this project, ignoring from_actor_id."""
+    query = select(GiraffeJPC2B2MRoleEdge).where(
+        GiraffeJPC2B2MRoleEdge.tenant_id == tenant_id,
+        GiraffeJPC2B2MRoleEdge.project_id == project_id,
+        GiraffeJPC2B2MRoleEdge.from_actor_type == "JP_CUSTOMER",
+        GiraffeJPC2B2MRoleEdge.from_role == "B_SIDE",
+        GiraffeJPC2B2MRoleEdge.to_actor_type == "GIRAFFE_JP",
+        GiraffeJPC2B2MRoleEdge.to_role == "MAIN_M_SIDE",
+        GiraffeJPC2B2MRoleEdge.edge_type == "DEFAULT",
+    )
+    # Only match on order_id when it is explicitly provided
+    if order_id is not None:
+        query = query.where(GiraffeJPC2B2MRoleEdge.order_id == order_id)
+    result = await db.execute(query)
+    return result.scalars().first()
+
+
 async def _edge_exists(
     db: AsyncSession,
     tenant_id: uuid.UUID,
     project_id: uuid.UUID,
+    order_id: uuid.UUID | None,
     from_actor_type: str,
+    from_actor_id: uuid.UUID | None,
+    from_role: str,
     to_actor_type: str,
     to_actor_id: uuid.UUID | None,
+    to_role: str,
     edge_type: str,
 ) -> bool:
     query = select(GiraffeJPC2B2MRoleEdge).where(
         GiraffeJPC2B2MRoleEdge.tenant_id == tenant_id,
         GiraffeJPC2B2MRoleEdge.project_id == project_id,
         GiraffeJPC2B2MRoleEdge.from_actor_type == from_actor_type,
+        GiraffeJPC2B2MRoleEdge.from_role == from_role,
         GiraffeJPC2B2MRoleEdge.to_actor_type == to_actor_type,
+        GiraffeJPC2B2MRoleEdge.to_role == to_role,
         GiraffeJPC2B2MRoleEdge.edge_type == edge_type,
     )
+    if order_id is not None:
+        query = query.where(GiraffeJPC2B2MRoleEdge.order_id == order_id)
+    if from_actor_id is not None:
+        query = query.where(GiraffeJPC2B2MRoleEdge.from_actor_id == from_actor_id)
     if to_actor_id is not None:
         query = query.where(GiraffeJPC2B2MRoleEdge.to_actor_id == to_actor_id)
     result = await db.execute(query)
@@ -199,9 +262,16 @@ async def initialize_default_c2b2m_edges_for_project(
     supplier_id: uuid.UUID | None = None,
 ) -> list[GiraffeJPC2B2MRoleEdge]:
     await _validate_project_tenant(db, project_id, tenant_id)
+
+    if order_id is not None:
+        await _validate_order_scope(db, order_id, tenant_id, project_id)
+
     created = []
 
-    if not await _edge_exists(db, tenant_id, project_id, "JP_CUSTOMER", "GIRAFFE_JP", None, "DEFAULT"):
+    # Customer edge: find any existing customer→giraffe_jp DEFAULT edge for this project.
+    # If one exists with from_actor_id=None and a customer_id is now supplied, update it.
+    existing_customer_edge = await _find_default_customer_edge(db, tenant_id, project_id, order_id)
+    if existing_customer_edge is None:
         edge = GiraffeJPC2B2MRoleEdge(
             tenant_id=tenant_id,
             project_id=project_id,
@@ -217,9 +287,16 @@ async def initialize_default_c2b2m_edges_for_project(
         db.add(edge)
         await db.flush()
         created.append(edge)
+    elif existing_customer_edge.from_actor_id is None and customer_id is not None:
+        # Update the anonymous edge with the now-known customer identity
+        existing_customer_edge.from_actor_id = customer_id
+        await db.flush()
 
     if supplier_id and not await _edge_exists(
-        db, tenant_id, project_id, "GIRAFFE_JP", "SUPPLIER", supplier_id, "DEFAULT"
+        db, tenant_id, project_id, order_id,
+        "GIRAFFE_JP", None, "UPSTREAM_B_SIDE",
+        "SUPPLIER", supplier_id, "UPSTREAM_M_SIDE",
+        "DEFAULT",
     ):
         edge = GiraffeJPC2B2MRoleEdge(
             tenant_id=tenant_id,

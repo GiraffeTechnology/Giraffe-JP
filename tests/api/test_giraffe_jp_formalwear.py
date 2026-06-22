@@ -1,6 +1,8 @@
 """API tests for formalwear order profiles and C2B2M role edges."""
 import uuid
 
+from src.db.models.order import Order as OrderModel
+from src.db.models.project import Project
 from src.db.models.tenant import Tenant
 
 
@@ -244,3 +246,124 @@ async def test_tenant_isolation_role_edges(auth_client, seed_project, db):
     resp = await auth_client.get("/api/giraffe-jp/c2b2m/role-edges")
     assert resp.status_code == 200
     assert len(resp.json()) >= 1
+
+
+# ── Scope validation tests ────────────────────────────────────────────────────
+
+async def _make_other_tenant_order(db, real_user_id: uuid.UUID):
+    """Create an order in a separate tenant and return (order, other_tenant)."""
+    other_tenant = Tenant(name="Scope Tenant", slug=f"scope-{uuid.uuid4().hex[:8]}")
+    db.add(other_tenant)
+    await db.flush()
+    # real_user_id satisfies the projects.created_by FK constraint
+    other_project = Project(tenant_id=other_tenant.id, title="Scope Project", created_by=real_user_id)
+    db.add(other_project)
+    await db.flush()
+    other_order = OrderModel(project_id=other_project.id)
+    db.add(other_order)
+    await db.commit()
+    return other_order, other_tenant
+
+
+async def test_formalwear_profile_rejects_cross_tenant_order_id(auth_client, seed_user, seed_project, db):
+    """order_id that belongs to another tenant must be rejected (422)."""
+    other_order, _ = await _make_other_tenant_order(db, uuid.UUID(seed_user["user_id"]))
+
+    resp = await auth_client.post(
+        "/api/giraffe-jp/formalwear/order-profiles",
+        json={
+            "project_id": seed_project["id"],
+            "product_category": "WOMENS_SUIT",
+            "occasion": "Meeting",
+            "order_id": str(other_order.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_formalwear_profile_rejects_order_id_wrong_project(auth_client, seed_project, db, seed_user):
+    """order_id that belongs to tenant but a different project must be rejected (422)."""
+    from src.db.models.project import Project as ProjectModel
+    # Create a second project in the same tenant
+    other_project_resp = await auth_client.post("/api/projects", json={"title": "Other Project"})
+    assert other_project_resp.status_code == 201
+    other_project_id = other_project_resp.json()["id"]
+
+    # Create an order under the other project directly in DB
+    other_order = OrderModel(project_id=uuid.UUID(other_project_id))
+    db.add(other_order)
+    await db.commit()
+
+    resp = await auth_client.post(
+        "/api/giraffe-jp/formalwear/order-profiles",
+        json={
+            "project_id": seed_project["id"],
+            "product_category": "FORMAL_DRESS",
+            "occasion": "Gala",
+            "order_id": str(other_order.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_c2b2m_role_edge_rejects_cross_tenant_order_id(auth_client, seed_user, seed_project, db):
+    """order_id from another tenant must be rejected for role edge creation (422)."""
+    other_order, _ = await _make_other_tenant_order(db, uuid.UUID(seed_user["user_id"]))
+
+    resp = await auth_client.post(
+        "/api/giraffe-jp/c2b2m/role-edges",
+        json={
+            "project_id": seed_project["id"],
+            "from_actor_type": "JP_CUSTOMER",
+            "from_role": "B_SIDE",
+            "to_actor_type": "GIRAFFE_JP",
+            "to_role": "MAIN_M_SIDE",
+            "edge_type": "DEFAULT",
+            "order_id": str(other_order.id),
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_default_edge_init_rejects_cross_tenant_order_id(auth_client, seed_user, seed_project, db):
+    """order_id from another tenant must be rejected by initialize-default-edges (422)."""
+    other_order, _ = await _make_other_tenant_order(db, uuid.UUID(seed_user["user_id"]))
+
+    resp = await auth_client.post(
+        f"/api/giraffe-jp/c2b2m/projects/{seed_project['id']}/initialize-default-edges",
+        json={"order_id": str(other_order.id)},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+async def test_default_edge_updates_actor_id_when_customer_supplied(auth_client, seed_project):
+    """Second call with customer_id updates the existing anonymous customer edge rather than duplicating."""
+    customer_id = str(uuid.uuid4())
+
+    # First call: anonymous customer edge
+    resp1 = await auth_client.post(
+        f"/api/giraffe-jp/c2b2m/projects/{seed_project['id']}/initialize-default-edges",
+        json={},
+    )
+    assert resp1.status_code == 200
+    assert len(resp1.json()) == 1
+
+    # Second call: supply customer_id — should update, not create a new edge
+    resp2 = await auth_client.post(
+        f"/api/giraffe-jp/c2b2m/projects/{seed_project['id']}/initialize-default-edges",
+        json={"customer_id": customer_id},
+    )
+    assert resp2.status_code == 200
+    # No new edge created (edge was updated in place)
+    assert len(resp2.json()) == 0
+
+    # Verify only one customer→giraffe_jp edge exists
+    list_resp = await auth_client.get(
+        f"/api/giraffe-jp/c2b2m/role-edges?project_id={seed_project['id']}"
+    )
+    customer_edges = [
+        e for e in list_resp.json()
+        if e["from_actor_type"] == "JP_CUSTOMER" and e["to_actor_type"] == "GIRAFFE_JP"
+    ]
+    assert len(customer_edges) == 1
+    assert customer_edges[0]["from_actor_id"] == customer_id

@@ -215,11 +215,11 @@ All routes are prefixed with `/api/giraffe-jp` and require `Authorization: Beare
 
 ---
 
-## 5. New Migration
+## 5. New Migrations
+
+### `c3d4e5f6a7b8` — Add Giraffe JP Iterations 02–04
 
 **File:** `alembic/versions/c3d4e5f6a7b8_add_giraffe_jp_iter02_03_04.py`
-
-**Revision:** `c3d4e5f6a7b8`
 **Down revision:** `b2c3d4e5f6a7` (Iteration 01 migration)
 
 Tables created (in dependency order):
@@ -232,7 +232,14 @@ Tables created (in dependency order):
 6. `giraffe_jp_formalwear_order_profiles` — indexed on `tenant_id`, `project_id`
 7. `giraffe_jp_c2b2m_role_edges` — indexed on `tenant_id`, `project_id`
 
-The migration uses `postgresql.JSONB` for JSON columns where applicable and is fully reversible via `downgrade()`.
+### `d4e5f6a7b8c9` — Add Actor Columns to Projects
+
+**File:** `alembic/versions/d4e5f6a7b8c9_add_actor_columns_to_projects.py`
+**Down revision:** `c3d4e5f6a7b8`
+
+Adds the actor-based identity columns to the `projects` table that exist in the `Project` ORM model but were omitted from the initial schema migration. Columns added: `project_id` (String UUID), `original_buyer_actor_id`, `main_supplier_actor_id`, `category`, `product_summary`, `quantity`, `product_tier`, `created_by_channel`, `metadata_json`. FK constraints for actor columns are deferred until the `actors` table is introduced.
+
+Both migrations are fully reversible via `downgrade()`.
 
 ---
 
@@ -250,38 +257,74 @@ The migration uses `postgresql.JSONB` for JSON columns where applicable and is f
 
 | File | Tests | Coverage |
 |---|---|---|
-| `tests/api/test_giraffe_jp_message_permissions.py` | 8 | Seed defaults, list, get, update, tenant isolation |
-| `tests/api/test_giraffe_jp_conversations.py` | 14 | Thread CRUD, inbound messages, auto-send, approve, reject, tenant isolation |
-| `tests/api/test_giraffe_jp_formalwear.py` | 15 | Profile CRUD, hollow-to-hem defaults, role edges, duplicate prevention, tenant isolation |
+| `tests/api/test_giraffe_jp_service_core.py` | 2 | Service node, confirmation, CS task creation; tenant isolation |
+| `tests/api/test_giraffe_jp_message_permissions.py` | 9 | Seed defaults, idempotency, list, get, update, inactive flag, tenant isolation |
+| `tests/api/test_giraffe_jp_conversations.py` | 19 | Thread CRUD, inbound messages, auto-send, pending, approve, reject, tenant isolation, cross-tenant scope rejection (project, order, participant, service node, confirmation request) |
+| `tests/api/test_giraffe_jp_formalwear.py` | 22 | Profile CRUD, hollow-to-hem defaults, role edges, duplicate prevention, tenant isolation, cross-tenant order scope rejection, wrong-project order rejection, default edge actor update |
 
 ---
 
 ## 7. Test Results
 
+### Migration
+
+```
+uv run alembic upgrade head
+INFO  Running upgrade  -> f66f720908c0, iter1_initial_schema
+INFO  Running upgrade f66f720908c0 -> a1b2c3d4e5f6, add_delivery_feasibility_packets
+INFO  Running upgrade a1b2c3d4e5f6 -> b2c3d4e5f6a7, add_giraffe_jp_service_core
+INFO  Running upgrade b2c3d4e5f6a7 -> c3d4e5f6a7b8, add_giraffe_jp_iter02_03_04
+INFO  Running upgrade c3d4e5f6a7b8 -> d4e5f6a7b8c9, add_actor_columns_to_projects
+```
+
+All 5 migrations applied cleanly against PostgreSQL 16.
+
 ### Unit Tests
 
 ```
 uv run pytest tests/unit/ -v -m "not integration"
-...
-======================== 69 passed, 2 warnings in 0.18s ========================
+======================== 69 passed, 2 warnings in 0.39s ========================
 ```
 
 All 69 unit tests pass (50 pre-existing + 19 new Giraffe JP unit tests).
 
 ### API Integration Tests
 
-Not run — PostgreSQL is not available in this environment. API tests require a live database and are expected to pass once the migration is applied against a running PostgreSQL instance.
-
-To run:
-```bash
-uv run pytest tests/api/test_giraffe_jp_message_permissions.py -v
-uv run pytest tests/api/test_giraffe_jp_conversations.py -v
-uv run pytest tests/api/test_giraffe_jp_formalwear.py -v
 ```
+uv run pytest tests/api/test_giraffe_jp_service_core.py tests/api/test_giraffe_jp_message_permissions.py tests/api/test_giraffe_jp_conversations.py tests/api/test_giraffe_jp_formalwear.py -v
+======================== 52 passed, 2 warnings in 33.52s =======================
+```
+
+**Total: 121 tests passed (69 unit + 52 API), 0 failed.**
+
+| Suite | Passed | Failed |
+|---|---|---|
+| `tests/unit/` | 69 | 0 |
+| `tests/api/test_giraffe_jp_service_core.py` | 2 | 0 |
+| `tests/api/test_giraffe_jp_message_permissions.py` | 9 | 0 |
+| `tests/api/test_giraffe_jp_conversations.py` | 19 | 0 |
+| `tests/api/test_giraffe_jp_formalwear.py` | 22 | 0 |
+| **Total** | **121** | **0** |
 
 ---
 
-## 8. Known Limitations
+## 8. Scope Validation (Added in PR Fix)
+
+The following validation was added after the initial implementation, prompted by PR review:
+
+**`create_conversation_thread()`** — validates that `project_id`, `order_id`, and `participant_id` (when supplied) belong to the current tenant. Order scope is checked via its parent project's `tenant_id`. An `order_id` supplied together with a `project_id` must also belong to that project.
+
+**`create_outbound_draft()`** — validates that `service_node_id` and `confirmation_request_id` (when supplied) belong to the current tenant. Cross-reference: if both are supplied, `confirmation_request.service_node_id` must match the supplied `service_node_id`. Project scope compatibility is also checked between the draft's thread and the referenced node/confirmation.
+
+**`create_formalwear_order_profile()` / `update_formalwear_order_profile()`** — validates that `order_id` (when supplied) belongs to the current tenant and to the profile's `project_id`.
+
+**`create_c2b2m_role_edge()` / `initialize_default_c2b2m_edges_for_project()`** — validates that `order_id` (when supplied) belongs to the current tenant and project.
+
+**C2B2M deduplication improvement** — `_edge_exists()` now uses all relevant fields: `tenant_id`, `project_id`, `order_id`, `from_actor_type`, `from_actor_id`, `from_role`, `to_actor_type`, `to_actor_id`, `to_role`, `edge_type`. The default customer→giraffe_jp edge uses `_find_default_customer_edge()` (ignores `from_actor_id`) so an edge already exists for the project is not duplicated even when `customer_id` is later provided. When an existing anonymous edge is found and a `customer_id` is supplied, the edge is updated in place rather than a new one created.
+
+---
+
+## 9. Known Limitations
 
 - **No real email delivery.** Outbound messages are recorded as `MOCK_SENT`. No SMTP or transactional email provider is integrated in this iteration. The delivery log captures `MOCK_SENT` status to signal this.
 
@@ -299,7 +342,7 @@ uv run pytest tests/api/test_giraffe_jp_formalwear.py -v
 
 ---
 
-## 9. Remaining Iteration 05+ Work
+## 10. Remaining Iteration 05+ Work
 
 The following features are planned but not yet implemented:
 
