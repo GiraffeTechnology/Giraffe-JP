@@ -22,7 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # ── Iteration 02: Message Category Auto-Send Permissions ─────────────────────
+    # ── Iteration 02: Message Category Auto-Send Permissions ────────────────────
     op.create_table(
         'giraffe_jp_message_category_permissions',
         sa.Column('id', sa.Uuid(), nullable=False),
@@ -40,7 +40,7 @@ def upgrade() -> None:
     )
     op.create_index('ix_gjp_msg_perms_tenant_id', 'giraffe_jp_message_category_permissions', ['tenant_id'])
 
-    # ── Iteration 03: Web Dialog and Email Communication Layer ────────────────
+    # ── Iteration 03: Web Dialog and Email Communication Layer ────────────
     op.create_table(
         'giraffe_jp_conversation_threads',
         sa.Column('id', sa.Uuid(), nullable=False),
@@ -58,6 +58,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index('ix_gjp_conv_threads_tenant_id', 'giraffe_jp_conversation_threads', ['tenant_id'])
+    op.create_index('ix_gjp_conv_threads_project_id', 'giraffe_jp_conversation_threads', ['project_id'])
+    op.create_index('ix_gjp_conv_threads_status', 'giraffe_jp_conversation_threads', ['status'])
 
     op.create_table(
         'giraffe_jp_messages',
@@ -73,6 +75,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['thread_id'], ['giraffe_jp_conversation_threads.id']),
         sa.PrimaryKeyConstraint('id'),
     )
+    op.create_index('ix_gjp_messages_tenant_id', 'giraffe_jp_messages', ['tenant_id'])
     op.create_index('ix_gjp_messages_thread_id', 'giraffe_jp_messages', ['thread_id'])
 
     op.create_table(
@@ -92,6 +95,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['reviewed_by_user_id'], ['users.id']),
         sa.PrimaryKeyConstraint('id'),
     )
+    op.create_index('ix_gjp_drafts_tenant_id', 'giraffe_jp_outbound_message_drafts', ['tenant_id'])
     op.create_index('ix_gjp_drafts_thread_id', 'giraffe_jp_outbound_message_drafts', ['thread_id'])
     op.create_index('ix_gjp_drafts_approval_status', 'giraffe_jp_outbound_message_drafts', ['approval_status'])
 
@@ -108,8 +112,10 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['draft_id'], ['giraffe_jp_outbound_message_drafts.id']),
         sa.PrimaryKeyConstraint('id'),
     )
+    op.create_index('ix_gjp_delivery_logs_tenant_id', 'giraffe_jp_message_delivery_logs', ['tenant_id'])
+    op.create_index('ix_gjp_delivery_logs_draft_id', 'giraffe_jp_message_delivery_logs', ['draft_id'])
 
-    # ── Iteration 04: Formalwear C2B2M Order Extension ────────────────────────
+    # ── Iteration 04: Formalwear C2B2M Order Extension ──────────────────
     op.create_table(
         'giraffe_jp_formalwear_order_profiles',
         sa.Column('id', sa.Uuid(), nullable=False),
@@ -127,6 +133,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['project_id'], ['projects.id']),
         sa.PrimaryKeyConstraint('id'),
     )
+    op.create_index('ix_gjp_formalwear_tenant_id', 'giraffe_jp_formalwear_order_profiles', ['tenant_id'])
     op.create_index('ix_gjp_formalwear_project_id', 'giraffe_jp_formalwear_order_profiles', ['project_id'])
 
     op.create_table(
@@ -143,25 +150,34 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['project_id'], ['projects.id']),
         sa.PrimaryKeyConstraint('id'),
     )
+    op.create_index('ix_gjp_c2b2m_edges_tenant_id', 'giraffe_jp_c2b2m_role_edges', ['tenant_id'])
     op.create_index('ix_gjp_c2b2m_edges_project_id', 'giraffe_jp_c2b2m_role_edges', ['project_id'])
 
 
 def downgrade() -> None:
     op.drop_index('ix_gjp_c2b2m_edges_project_id', table_name='giraffe_jp_c2b2m_role_edges')
+    op.drop_index('ix_gjp_c2b2m_edges_tenant_id', table_name='giraffe_jp_c2b2m_role_edges')
     op.drop_table('giraffe_jp_c2b2m_role_edges')
 
     op.drop_index('ix_gjp_formalwear_project_id', table_name='giraffe_jp_formalwear_order_profiles')
+    op.drop_index('ix_gjp_formalwear_tenant_id', table_name='giraffe_jp_formalwear_order_profiles')
     op.drop_table('giraffe_jp_formalwear_order_profiles')
 
+    op.drop_index('ix_gjp_delivery_logs_draft_id', table_name='giraffe_jp_message_delivery_logs')
+    op.drop_index('ix_gjp_delivery_logs_tenant_id', table_name='giraffe_jp_message_delivery_logs')
     op.drop_table('giraffe_jp_message_delivery_logs')
 
     op.drop_index('ix_gjp_drafts_approval_status', table_name='giraffe_jp_outbound_message_drafts')
     op.drop_index('ix_gjp_drafts_thread_id', table_name='giraffe_jp_outbound_message_drafts')
+    op.drop_index('ix_gjp_drafts_tenant_id', table_name='giraffe_jp_outbound_message_drafts')
     op.drop_table('giraffe_jp_outbound_message_drafts')
 
     op.drop_index('ix_gjp_messages_thread_id', table_name='giraffe_jp_messages')
+    op.drop_index('ix_gjp_messages_tenant_id', table_name='giraffe_jp_messages')
     op.drop_table('giraffe_jp_messages')
 
+    op.drop_index('ix_gjp_conv_threads_status', table_name='giraffe_jp_conversation_threads')
+    op.drop_index('ix_gjp_conv_threads_project_id', table_name='giraffe_jp_conversation_threads')
     op.drop_index('ix_gjp_conv_threads_tenant_id', table_name='giraffe_jp_conversation_threads')
     op.drop_table('giraffe_jp_conversation_threads')
 
