@@ -19,6 +19,7 @@ from api.routes.role_switching import router as role_switching_router
 from api.routes.giraffe_jp_service_nodes import router as giraffe_jp_service_nodes_router
 from api.routes.giraffe_jp_confirmations import router as giraffe_jp_confirmations_router
 from api.routes.giraffe_jp_customer_service import router as giraffe_jp_customer_service_router
+from api.routes.skill_invoke import router as skill_invoke_router
 from src.actors.role_resolver import resolve_role_context
 from src.m_side.dependencies.dependency_planner import plan_upstream_dependencies
 from src.m_side.rollup.supplier_response_rollup import generate_supplier_response_rollup
@@ -57,6 +58,7 @@ app.include_router(role_switching_router)
 app.include_router(giraffe_jp_service_nodes_router, prefix="/api/giraffe-jp", tags=["giraffe_jp_service_nodes"])
 app.include_router(giraffe_jp_confirmations_router, prefix="/api/giraffe-jp", tags=["giraffe_jp_confirmations"])
 app.include_router(giraffe_jp_customer_service_router, prefix="/api/giraffe-jp", tags=["giraffe_jp_customer_service"])
+app.include_router(skill_invoke_router, tags=["skill_invoke"])
 
 # The role-switching pipeline stages reachable at /api/role-switching/run-upstream-pipeline.
 ROLE_SWITCHING_PIPELINE_STAGES = [
