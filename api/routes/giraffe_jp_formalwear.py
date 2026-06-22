@@ -14,6 +14,7 @@ from src.giraffe_jp.schemas import (
 from src.giraffe_jp.formalwear import (
     create_formalwear_profile,
     initialize_default_c2b2m_edges_for_project,
+    _validate_project_scope,
 )
 from src.execution_graph.writer import emit_event
 from src.execution_graph import event_types
@@ -129,6 +130,10 @@ async def list_edges(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    try:
+        await _validate_project_scope(db, current_user.tenant_id, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     result = await db.execute(
         select(GiraffeJPC2B2MRoleEdge)
         .where(

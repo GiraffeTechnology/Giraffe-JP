@@ -123,3 +123,85 @@ async def test_formalwear_requires_auth(client, seed_project):
         f"/api/giraffe-jp/projects/{uuid.uuid4()}/formalwear-profile"
     )
     assert resp.status_code == 401
+
+
+# ── Negative / tenant-isolation tests ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_formalwear_profile_invalid_category_returns_400(auth_client, seed_project):
+    """Unknown garment category must be rejected with HTTP 400."""
+    resp = await auth_client.post(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/formalwear-profile",
+        json={"garment_category": "INVALID_CATEGORY"},
+    )
+    assert resp.status_code == 400, resp.text
+    assert "Unsupported garment category" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_create_profile_under_another_tenants_project(
+    auth_client, other_auth_client, seed_project
+):
+    """Tenant B cannot create a formalwear profile under Tenant A's project."""
+    resp = await other_auth_client.post(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/formalwear-profile",
+        json={"garment_category": "WOMENS_SUIT"},
+    )
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_read_profile_under_another_tenants_project(
+    auth_client, other_auth_client, seed_project
+):
+    """Tenant B cannot read the formalwear profile that belongs to Tenant A."""
+    await auth_client.post(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/formalwear-profile",
+        json={"garment_category": "BRIDALWEAR", "hollow_to_hem_cm": 142.0},
+    )
+    resp = await other_auth_client.get(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/formalwear-profile"
+    )
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_update_profile_under_another_tenants_project(
+    auth_client, other_auth_client, seed_project
+):
+    """Tenant B cannot update the formalwear profile that belongs to Tenant A."""
+    await auth_client.post(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/formalwear-profile",
+        json={"garment_category": "FORMAL_DRESS"},
+    )
+    resp = await other_auth_client.patch(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/formalwear-profile",
+        json={"hollow_to_hem_cm": 999.0},
+    )
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_initialize_c2b2m_edges_under_another_tenants_project(
+    auth_client, other_auth_client, seed_project
+):
+    """Tenant B cannot initialize C2B2M edges under Tenant A's project."""
+    resp = await other_auth_client.post(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/c2b2m-edges/initialize"
+    )
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_list_c2b2m_edges_under_another_tenants_project(
+    auth_client, other_auth_client, seed_project
+):
+    """Tenant B cannot list C2B2M edges that belong to Tenant A's project."""
+    await auth_client.post(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/c2b2m-edges/initialize"
+    )
+    resp = await other_auth_client.get(
+        f"/api/giraffe-jp/projects/{seed_project['id']}/c2b2m-edges"
+    )
+    assert resp.status_code == 404, resp.text
