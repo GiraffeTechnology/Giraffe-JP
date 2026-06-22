@@ -203,7 +203,7 @@ Test requirements:
 
 ## Iteration 01 Implementation Notes
 
-The first runtime iteration should create:
+The first runtime iteration created:
 
 - `GiraffeJPServiceNode`
 - `GiraffeJPConfirmationRequest`
@@ -213,4 +213,28 @@ The first runtime iteration should create:
 - API routes for starting, completing, and escalating customer-service tasks.
 - Execution event writes for created and completed service actions.
 
-Keep this iteration small. Do not implement conversations, auto-send permissions, formalwear profiles, measurement, QC evidence, or logistics adapters until the service-node core is stable.
+**Status: Complete.** Migration: `b2c3d4e5f6a7`.
+
+---
+
+## Iteration 02 Implementation Notes
+
+Adds `GiraffeJPMessageCategoryPermission` with 22 default categories across CUSTOMER, SUPPLIER, and MODEL_PARTNER directions. The `is_auto_send_allowed()` helper applies 4 ordered rules (category not found → False, is_active=False → False, channel mismatch → False, return perm.auto_send). The seed-defaults endpoint is idempotent.
+
+**Status: Complete.** Routes under `/api/giraffe-jp/message-category-permissions`.
+
+---
+
+## Iteration 03 Implementation Notes
+
+Adds conversation threads, inbound/outbound messages, outbound drafts, and delivery logs. Every outbound draft checks `is_auto_send_allowed()` at creation time — no direct send path bypasses this check. Auto-sent drafts create a `GiraffeJPMessage` and `GiraffeJPMessageDeliveryLog(MOCK_SENT)`. Pending drafts create a `GiraffeJPCustomerServiceTask(REVIEW_OUTBOUND_MESSAGE)` and a pending delivery log. Approve and reject flows are separate endpoints.
+
+**Status: Complete.** Routes under `/api/giraffe-jp/conversations` and `/api/giraffe-jp/outbound-drafts`. No real email provider integrated; outbound messages are mock-sent.
+
+---
+
+## Iteration 04 Implementation Notes
+
+Adds `GiraffeJPFormalwearOrderProfile` linked to existing projects. The `hollow_to_hem_required` field defaults to `true` for FORMAL_DRESS, BRIDALWEAR, and LIGHT_WEDDING_DRESS product categories when not explicitly set. Adds `GiraffeJPC2B2MRoleEdge` and a default-edge initializer that creates at most 2 edges per project (JP_CUSTOMER→GIRAFFE_JP always; GIRAFFE_JP→SUPPLIER only when supplier_id is provided). Duplicate edges are silently skipped by the initializer.
+
+**Status: Complete.** Migration: `c3d4e5f6a7b8`. Routes under `/api/giraffe-jp/formalwear` and `/api/giraffe-jp/c2b2m`.
