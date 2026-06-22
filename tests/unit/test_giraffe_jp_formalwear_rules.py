@@ -4,8 +4,38 @@ from src.giraffe_jp.formalwear import (
     HOLLOW_TO_HEM_REQUIRED_CATEGORIES,
     FORMALWEAR_CATEGORIES,
     DEFAULT_C2B2M_EDGES,
+    is_hollow_to_hem_required_for_category,
 )
 
+
+# ── is_hollow_to_hem_required_for_category helper ──────────────────────────
+
+def test_is_hollow_to_hem_required_bridalwear():
+    assert is_hollow_to_hem_required_for_category("BRIDALWEAR") is True
+
+
+def test_is_hollow_to_hem_required_light_wedding_dress():
+    assert is_hollow_to_hem_required_for_category("LIGHT_WEDDING_DRESS") is True
+
+
+def test_is_hollow_to_hem_required_formal_dress():
+    assert is_hollow_to_hem_required_for_category("FORMAL_DRESS") is True
+
+
+def test_is_hollow_to_hem_not_required_womens_suit():
+    assert is_hollow_to_hem_required_for_category("WOMENS_SUIT") is False
+
+
+def test_is_hollow_to_hem_not_required_reception_dress():
+    assert is_hollow_to_hem_required_for_category("RECEPTION_DRESS") is False
+
+
+def test_is_hollow_to_hem_raises_for_invalid_category():
+    with pytest.raises(ValueError, match="Unsupported garment category"):
+        is_hollow_to_hem_required_for_category("INVALID_CATEGORY")
+
+
+# ── Constant integrity ─────────────────────────────────────────────────────
 
 def test_hollow_to_hem_required_for_bridalwear():
     assert "BRIDALWEAR" in HOLLOW_TO_HEM_REQUIRED_CATEGORIES
@@ -36,6 +66,8 @@ def test_hollow_to_hem_required_subset_of_formalwear():
     assert HOLLOW_TO_HEM_REQUIRED_CATEGORIES.issubset(FORMALWEAR_CATEGORIES)
 
 
+# ── DEFAULT_C2B2M_EDGES ────────────────────────────────────────────────────
+
 def test_default_c2b2m_edges_count():
     assert len(DEFAULT_C2B2M_EDGES) == 4
 
@@ -63,11 +95,3 @@ def test_default_c2b2m_edges_contain_platform_to_local_model():
 def test_default_c2b2m_edges_all_have_labels():
     for edge in DEFAULT_C2B2M_EDGES:
         assert edge.get("edge_label"), f"Edge {edge} missing edge_label"
-
-
-def test_hollow_to_hem_required_logic():
-    """create_formalwear_profile sets hollow_to_hem_required from category."""
-    for category in FORMALWEAR_CATEGORIES:
-        expected = category in HOLLOW_TO_HEM_REQUIRED_CATEGORIES
-        actual = category in HOLLOW_TO_HEM_REQUIRED_CATEGORIES
-        assert actual == expected

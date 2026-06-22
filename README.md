@@ -93,7 +93,7 @@ Industrial Execution Graph record
 
 ## Role Model
 
-Giraffe JP uses Giraffe Agent's edge-based role logic.
+Giraffe JP uses Giraffe Agent's edge-based role-switching logic.
 
 ### Edge 1 — Customer to Giraffe JP
 
