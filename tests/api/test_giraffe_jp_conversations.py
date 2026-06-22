@@ -202,3 +202,130 @@ async def test_list_outbound_drafts(auth_client):
     resp = await auth_client.get(f"/api/giraffe-jp/conversations/{thread_id}/outbound-drafts")
     assert resp.status_code == 200, resp.text
     assert len(resp.json()) >= 1
+
+
+# ── Tenant isolation negative tests ───────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_read_conversation_thread(auth_client, other_auth_client):
+    """Tenant B must not be able to read tenant A's conversation thread."""
+    create_resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER", "subject": "Tenant A thread"},
+    )
+    assert create_resp.status_code == 201
+    thread_id = create_resp.json()["id"]
+
+    resp = await other_auth_client.get(f"/api/giraffe-jp/conversations/{thread_id}")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_create_inbound_message_on_thread(auth_client, other_auth_client):
+    """Tenant B must not be able to record an inbound message on tenant A's thread."""
+    thread_resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER"},
+    )
+    thread_id = thread_resp.json()["id"]
+
+    resp = await other_auth_client.post(
+        f"/api/giraffe-jp/conversations/{thread_id}/messages/inbound",
+        json={"body": "Cross-tenant inbound injection."},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_create_outbound_draft_on_thread(auth_client, other_auth_client):
+    """Tenant B must not be able to create an outbound draft on tenant A's thread."""
+    thread_resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER"},
+    )
+    thread_id = thread_resp.json()["id"]
+
+    resp = await other_auth_client.post(
+        f"/api/giraffe-jp/conversations/{thread_id}/outbound-drafts",
+        json={"category_id": "UNKNOWN_CAT", "body": "Cross-tenant draft."},
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_list_drafts_on_thread(auth_client, other_auth_client):
+    """Tenant B listing drafts on tenant A's thread_id must see no drafts."""
+    thread_resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER"},
+    )
+    thread_id = thread_resp.json()["id"]
+    await auth_client.post(
+        f"/api/giraffe-jp/conversations/{thread_id}/outbound-drafts",
+        json={"category_id": "UNKNOWN_CAT", "body": "Tenant A draft."},
+    )
+
+    resp = await other_auth_client.get(f"/api/giraffe-jp/conversations/{thread_id}/outbound-drafts")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_approve_draft(auth_client, other_auth_client):
+    """Tenant B must not be able to approve tenant A's pending draft."""
+    thread_resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER"},
+    )
+    thread_id = thread_resp.json()["id"]
+    draft_resp = await auth_client.post(
+        f"/api/giraffe-jp/conversations/{thread_id}/outbound-drafts",
+        json={"category_id": "UNKNOWN_CAT", "body": "Pending draft."},
+    )
+    assert draft_resp.json()["approval_status"] == "PENDING_HUMAN_CONFIRMATION"
+    draft_id = draft_resp.json()["id"]
+
+    resp = await other_auth_client.post(f"/api/giraffe-jp/outbound-drafts/{draft_id}/approve")
+    assert resp.status_code in (400, 404)
+
+    # Draft must still be PENDING (not mutated)
+    check = await auth_client.post(f"/api/giraffe-jp/outbound-drafts/{draft_id}/approve")
+    assert check.status_code == 200
+    assert check.json()["approval_status"] == "APPROVED"
+
+
+@pytest.mark.asyncio
+async def test_other_tenant_cannot_reject_draft(auth_client, other_auth_client):
+    """Tenant B must not be able to reject tenant A's pending draft."""
+    thread_resp = await auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER"},
+    )
+    thread_id = thread_resp.json()["id"]
+    draft_resp = await auth_client.post(
+        f"/api/giraffe-jp/conversations/{thread_id}/outbound-drafts",
+        json={"category_id": "UNKNOWN_CAT", "body": "Pending draft for reject test."},
+    )
+    assert draft_resp.json()["approval_status"] == "PENDING_HUMAN_CONFIRMATION"
+    draft_id = draft_resp.json()["id"]
+
+    resp = await other_auth_client.post(f"/api/giraffe-jp/outbound-drafts/{draft_id}/reject")
+    assert resp.status_code in (400, 404)
+
+    # Draft must still be PENDING (not mutated)
+    check = await auth_client.post(f"/api/giraffe-jp/outbound-drafts/{draft_id}/reject")
+    assert check.status_code == 200
+    assert check.json()["approval_status"] == "REJECTED"
+
+
+@pytest.mark.asyncio
+async def test_create_conversation_with_other_tenant_project_returns_404(auth_client, other_auth_client, seed_project):
+    """Creating a thread with another tenant's project_id must return 404."""
+    # seed_project belongs to auth_client (tenant A)
+    other_tenant_project_id = seed_project["id"]
+
+    resp = await other_auth_client.post(
+        "/api/giraffe-jp/conversations",
+        json={"party_type": "CUSTOMER", "project_id": other_tenant_project_id},
+    )
+    assert resp.status_code == 404
