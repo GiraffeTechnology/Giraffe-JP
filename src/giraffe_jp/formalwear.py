@@ -2,6 +2,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from src.db.models.giraffe_jp import GiraffeJPFormalwearOrderProfile, GiraffeJPC2B2MRoleEdge
+from src.db.models.project import Project
 from src.execution_graph.writer import emit_event
 from src.execution_graph import event_types
 
@@ -23,6 +24,22 @@ DEFAULT_C2B2M_EDGES: list[dict] = [
 ]
 
 
+def is_hollow_to_hem_required_for_category(category: str) -> bool:
+    if category not in FORMALWEAR_CATEGORIES:
+        raise ValueError(f"Unsupported garment category: {category}")
+    return category in HOLLOW_TO_HEM_REQUIRED_CATEGORIES
+
+
+async def _validate_project_scope(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    project_id: uuid.UUID,
+) -> None:
+    project = await db.get(Project, project_id)
+    if not project or project.tenant_id != tenant_id:
+        raise ValueError("Project not found")
+
+
 async def create_formalwear_profile(
     db: AsyncSession,
     tenant_id: uuid.UUID,
@@ -34,7 +51,8 @@ async def create_formalwear_profile(
     custom_measurements: dict | None = None,
     triggered_by_user_id: uuid.UUID | None = None,
 ) -> GiraffeJPFormalwearOrderProfile:
-    hollow_to_hem_required = garment_category in HOLLOW_TO_HEM_REQUIRED_CATEGORIES
+    await _validate_project_scope(db, tenant_id, project_id)
+    hollow_to_hem_required = is_hollow_to_hem_required_for_category(garment_category)
 
     profile = GiraffeJPFormalwearOrderProfile(
         tenant_id=tenant_id,
@@ -69,6 +87,7 @@ async def initialize_default_c2b2m_edges_for_project(
     project_id: uuid.UUID,
     triggered_by_user_id: uuid.UUID | None = None,
 ) -> list[GiraffeJPC2B2MRoleEdge]:
+    await _validate_project_scope(db, tenant_id, project_id)
     result = await db.execute(
         select(GiraffeJPC2B2MRoleEdge).where(
             GiraffeJPC2B2MRoleEdge.tenant_id == tenant_id,

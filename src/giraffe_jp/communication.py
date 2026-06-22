@@ -8,9 +8,22 @@ from src.db.models.giraffe_jp import (
     GiraffeJPOutboundMessageDraft,
     GiraffeJPMessageDeliveryLog,
 )
+from src.db.models.project import Project
 from src.giraffe_jp.message_permissions import is_auto_send_allowed
 from src.execution_graph.writer import emit_event
 from src.execution_graph import event_types
+
+
+async def _validate_project_scope(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    project_id: uuid.UUID | None,
+) -> None:
+    if project_id is None:
+        return
+    project = await db.get(Project, project_id)
+    if not project or project.tenant_id != tenant_id:
+        raise ValueError("Project not found")
 
 
 async def create_thread(
@@ -23,6 +36,7 @@ async def create_thread(
     subject: str | None = None,
     triggered_by_user_id: uuid.UUID | None = None,
 ) -> GiraffeJPConversationThread:
+    await _validate_project_scope(db, tenant_id, project_id)
     thread = GiraffeJPConversationThread(
         tenant_id=tenant_id,
         project_id=project_id,
@@ -132,16 +146,18 @@ async def create_outbound_draft(
 async def approve_draft(
     db: AsyncSession,
     draft_id: uuid.UUID,
+    tenant_id: uuid.UUID,
     reviewed_by_user_id: uuid.UUID,
 ) -> GiraffeJPOutboundMessageDraft:
     result = await db.execute(
         select(GiraffeJPOutboundMessageDraft).where(
-            GiraffeJPOutboundMessageDraft.id == draft_id
+            GiraffeJPOutboundMessageDraft.id == draft_id,
+            GiraffeJPOutboundMessageDraft.tenant_id == tenant_id,
         )
     )
     draft = result.scalar_one_or_none()
     if draft is None:
-        raise ValueError(f"Draft {draft_id} not found")
+        raise ValueError("Draft not found")
     if draft.approval_status != "PENDING_HUMAN_CONFIRMATION":
         raise ValueError(f"Draft is not pending approval (current status: {draft.approval_status})")
 
@@ -172,16 +188,18 @@ async def approve_draft(
 async def reject_draft(
     db: AsyncSession,
     draft_id: uuid.UUID,
+    tenant_id: uuid.UUID,
     reviewed_by_user_id: uuid.UUID,
 ) -> GiraffeJPOutboundMessageDraft:
     result = await db.execute(
         select(GiraffeJPOutboundMessageDraft).where(
-            GiraffeJPOutboundMessageDraft.id == draft_id
+            GiraffeJPOutboundMessageDraft.id == draft_id,
+            GiraffeJPOutboundMessageDraft.tenant_id == tenant_id,
         )
     )
     draft = result.scalar_one_or_none()
     if draft is None:
-        raise ValueError(f"Draft {draft_id} not found")
+        raise ValueError("Draft not found")
     if draft.approval_status != "PENDING_HUMAN_CONFIRMATION":
         raise ValueError(f"Draft is not pending rejection (current status: {draft.approval_status})")
 

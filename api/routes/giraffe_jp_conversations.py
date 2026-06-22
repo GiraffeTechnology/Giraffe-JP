@@ -33,16 +33,19 @@ async def create_conversation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    thread = await create_thread(
-        db,
-        tenant_id=current_user.tenant_id,
-        party_type=body.party_type,
-        project_id=body.project_id,
-        party_ref_id=body.party_ref_id,
-        thread_type=body.thread_type,
-        subject=body.subject,
-        triggered_by_user_id=current_user.id,
-    )
+    try:
+        thread = await create_thread(
+            db,
+            tenant_id=current_user.tenant_id,
+            party_type=body.party_type,
+            project_id=body.project_id,
+            party_ref_id=body.party_ref_id,
+            thread_type=body.thread_type,
+            subject=body.subject,
+            triggered_by_user_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     await db.commit()
     await db.refresh(thread)
     return thread
@@ -160,7 +163,12 @@ async def approve(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        draft = await approve_draft(db, draft_id=draft_id, reviewed_by_user_id=current_user.id)
+        draft = await approve_draft(
+            db,
+            draft_id=draft_id,
+            tenant_id=current_user.tenant_id,
+            reviewed_by_user_id=current_user.id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     await db.commit()
@@ -175,7 +183,12 @@ async def reject(
     current_user: User = Depends(get_current_user),
 ):
     try:
-        draft = await reject_draft(db, draft_id=draft_id, reviewed_by_user_id=current_user.id)
+        draft = await reject_draft(
+            db,
+            draft_id=draft_id,
+            tenant_id=current_user.tenant_id,
+            reviewed_by_user_id=current_user.id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     await db.commit()

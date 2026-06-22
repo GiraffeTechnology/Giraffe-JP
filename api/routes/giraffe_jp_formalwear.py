@@ -28,17 +28,22 @@ async def create_profile(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    profile = await create_formalwear_profile(
-        db,
-        tenant_id=current_user.tenant_id,
-        project_id=project_id,
-        garment_category=body.garment_category,
-        hollow_to_hem_cm=body.hollow_to_hem_cm,
-        model_try_on_required=body.model_try_on_required,
-        local_alteration_possible=body.local_alteration_possible,
-        custom_measurements=body.custom_measurements,
-        triggered_by_user_id=current_user.id,
-    )
+    try:
+        profile = await create_formalwear_profile(
+            db,
+            tenant_id=current_user.tenant_id,
+            project_id=project_id,
+            garment_category=body.garment_category,
+            hollow_to_hem_cm=body.hollow_to_hem_cm,
+            model_try_on_required=body.model_try_on_required,
+            local_alteration_possible=body.local_alteration_possible,
+            custom_measurements=body.custom_measurements,
+            triggered_by_user_id=current_user.id,
+        )
+    except ValueError as exc:
+        if "Unsupported garment category" in str(exc):
+            raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc))
     await db.commit()
     await db.refresh(profile)
     return profile
@@ -103,12 +108,15 @@ async def initialize_edges(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    edges = await initialize_default_c2b2m_edges_for_project(
-        db,
-        tenant_id=current_user.tenant_id,
-        project_id=project_id,
-        triggered_by_user_id=current_user.id,
-    )
+    try:
+        edges = await initialize_default_c2b2m_edges_for_project(
+            db,
+            tenant_id=current_user.tenant_id,
+            project_id=project_id,
+            triggered_by_user_id=current_user.id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
     await db.commit()
     for edge in edges:
         await db.refresh(edge)
