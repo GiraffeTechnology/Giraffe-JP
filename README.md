@@ -1,84 +1,133 @@
-# Giraffe JP / ABCDYi Japan
+# Giraffe JP
 
-> AI-powered C2B2M custom formalwear platform for women in Japan.
+> First deployable C-B-M merchant backend package built on Giraffe Agent / abcdYi.
 
-Giraffe JP / ABCDYi Japan is a service-led made-to-order formalwear platform for women in Japan.
+Giraffe JP is a configurable agentic AI backend package for merchants operating custom-order stores. Merchants own their storefront, UI, brand, customer relationship, and B-side commercial responsibility, while Giraffe JP provides backend workflows, supplier coordination, confirmation controls, QC evidence process, logistics model, and operating know-how required to execute cross-border and cross-region custom-order business.
 
-It is designed for formal dresses, women's suits, bridalwear, light wedding dresses, reception dresses, and other formal-occasion apparel where customers need more than a product listing: they need guided measurement, structured confirmation, production follow-up, quality evidence review, local model try-on, segmented logistics tracking, and human-confirmed delivery.
-
-Giraffe JP is built on the abcdYi apparel execution foundation and extends it with a Japan-focused C2B2M service layer.
+The project was initiated by Giraffe Technology LLC（キリン技術合同会社）as the first landing package of Giraffe Agent / abcdYi. The name "Giraffe JP" reflects this origin and does not limit the package to any specific geography, consumer group, or apparel category.
 
 ---
 
 ## Product Position
 
-Giraffe JP is not a price-first cross-border shopping clone.
+Giraffe JP is not a consumer marketplace, shopping app, sourcing agency, or price-first cross-border shopping clone.
 
-The product value is service density:
+It is a merchant-owned C-B-M backend package:
 
-- AI-guided measurement support
-- structured customer confirmation
-- proportional digital human profile
-- proactive customer progress updates
-- qualified production partner network
+- merchants design and operate their own online or offline storefronts
+- merchants act as the B-side commercial operator
+- Giraffe JP provides the backend execution package and operating know-how
+- suppliers, factories, QC partners, logistics partners, and other service partners form the upstream M-side network
+- end customers remain the C-side demand source
+
+The product value is service density and execution control:
+
+- structured requirement intake
+- merchant-configurable UI and storefront integration
+- measurement and fit confirmation workflows
+- human-confirmed outbound communication
+- production partner coordination
 - supplier progress follow-up
-- QC raw photo/video evidence review
-- local model try-on as a standard service
-- segmented China / cross-border / Japan logistics tracking
+- QC evidence collection and review
+- segmented cross-region logistics tracking
 - customer sign-off and auditable execution history
+- supplier memory and Industrial Execution Graph records
 
-The customer does not need to manage production details alone. Giraffe JP turns a custom formalwear order into a structured, trackable, confirmable service workflow.
-
----
-
-## Why Giraffe JP Exists
-
-Women's formalwear orders are high-context purchases.
-
-A customer ordering a dress, suit, bridalwear item, or reception dress often needs help with:
-
-- measurement accuracy
-- size and fit confidence
-- style and occasion confirmation
-- production timeline visibility
-- quality evidence before delivery
-- logistics transparency
-- final handover confidence
-
-Low-price shopping platforms are optimized for selection and checkout speed. Giraffe JP is optimized for assisted execution.
+The merchant does not need to build a custom-order execution backend from scratch. Giraffe JP turns a high-context custom-order business into a structured, trackable, confirmable service workflow.
 
 ---
 
-## Core Scenario
+## Initial Reference Scenario
+
+The initial reference scenario is custom apparel and formalwear.
+
+This scenario is useful because formalwear and other made-to-order apparel categories often require more than product listing and checkout. They require measurement support, style confirmation, production timeline visibility, quality evidence before delivery, logistics transparency, and final handover confidence.
+
+The package is designed to expand from the initial custom apparel / formalwear configuration to broader apparel, textile, handicraft, and other high-touch bespoke-order categories where merchants need multi-party confirmation, supplier coordination, QC evidence, and cross-region fulfillment.
+
+---
+
+## C-B-M Role Model
+
+Giraffe JP uses Giraffe Agent's edge-based role-switching logic.
+
+### Standard C-B-M Store Flow
 
 ```text
-Japanese customer
+End customer
     ↓
-Formalwear requirement intake
+Merchant-owned storefront
     ↓
-AI-guided measurement
+Giraffe JP backend package
     ↓
-Measurement Profile
+Production / supplier / service partner network
+```
+
+| Party | C-B-M role | Meaning |
+|---|---|---|
+| End customer | C | Final buyer, wearer, requester, or demand source |
+| Merchant / store operator / brand owner | B | Owns storefront, UI, brand, customer relationship, pricing, and commercial responsibility |
+| Giraffe JP | Backend package / execution layer | Provides workflow engine, role-switching logic, confirmations, supplier coordination, QC process, logistics model, and operating know-how |
+| Supplier / factory / service partner | M | Executes production, supply, QC, logistics, model try-on, or other service functions |
+
+### Edge 1 — Customer to Merchant
+
+```text
+End Customer → Merchant Storefront
+End Customer: C-side demand source
+Merchant: B-side commercial operator
+```
+
+The merchant receives the custom-order demand through its own UI, storefront, sales channel, or offline store.
+
+### Edge 2 — Merchant to Giraffe JP
+
+```text
+Merchant → Giraffe JP Backend
+Merchant: B-side operator
+Giraffe JP: MAIN_M_SIDE execution package for the merchant
+```
+
+Giraffe JP structures the requirement, manages service nodes, creates confirmation requests, controls outbound communication, records execution events, and coordinates upstream execution.
+
+### Edge 3 — Giraffe JP to Production Partner
+
+```text
+Giraffe JP Backend → Production / Service Partner
+Giraffe JP: UPSTREAM_B_SIDE execution layer
+Partner: UPSTREAM_M_SIDE
+```
+
+Giraffe JP sends structured requirements to qualified full-package production suppliers or service partners that can handle production, sizing, basic QC, packaging, logistics preparation, or other configurable service roles.
+
+---
+
+## Core Execution Workflow
+
+```text
+Merchant-owned storefront
     ↓
-Proportional Digital Human Profile
+Custom-order requirement intake
     ↓
-Customer confirmation
+Structured order profile
     ↓
-Qualified production partner search
+Measurement / fit confirmation workflow
+    ↓
+Customer or staff confirmation
+    ↓
+Production partner search or assignment
     ↓
 Quote / timeline / service confirmation
     ↓
-Customer approval
+Merchant approval and customer-facing confirmation
     ↓
 Supplier order execution
     ↓
-QC raw evidence collection
+QC evidence collection
     ↓
 Segmented logistics tracking
     ↓
-Local model try-on
-    ↓
-Customer try-on review
+Optional local service / model / fitting review
     ↓
 Final delivery
     ↓
@@ -89,50 +138,33 @@ Supplier Memory update
 Industrial Execution Graph record
 ```
 
----
-
-## Role Model
-
-Giraffe JP uses Giraffe Agent's edge-based role-switching logic.
-
-### Edge 1 — Customer to Giraffe JP
-
-```text
-JP Customer → Giraffe JP
-JP Customer: B-side originator
-Giraffe JP: MAIN_M_SIDE
-```
-
-The customer gives Giraffe JP a custom formalwear requirement. Giraffe JP faces the customer as the main service executor.
-
-### Edge 2 — Giraffe JP to Production Partner
-
-```text
-Giraffe JP → Qualified production supplier
-Giraffe JP: UPSTREAM_B_SIDE
-Supplier: UPSTREAM_M_SIDE
-```
-
-Giraffe JP sends structured requirements to qualified full-package production suppliers that can handle fabric/trims internally, production, custom sizing, basic QC, packaging, and logistics preparation.
+This is the target workflow model. Current backend implementation status is listed below.
 
 ---
 
-## Service-Led Execution Layer
+## Agentic Execution Layer
 
-Giraffe JP adds a customer-service execution layer on top of the existing abcdYi apparel backend.
+Giraffe JP adds a merchant-facing service execution layer on top of the existing abcdYi apparel execution foundation.
 
 The key runtime objects are:
 
 - **Service Node** — an actionable service checkpoint, not merely an order status.
-- **Confirmation Request** — a structured request for a customer, supplier, staff member, model partner, or logistics provider to confirm specific information.
+- **Confirmation Request** — a structured request for a customer, supplier, staff member, model partner, logistics provider, or merchant operator to confirm specific information.
 - **Customer Service Task** — a work item for human review, escalation, or manual confirmation.
 - **Message Category Permission** — a simple `auto_send=true/false` control for outbound communication categories.
+- **Conversation Thread** — a tenant-scoped customer, supplier, or partner communication thread.
+- **Outbound Message Draft** — a human-confirmed or auto-sent outbound message object.
+- **Formalwear Order Profile** — the current initial custom-apparel reference profile.
+- **C2B2M Role Edge** — a project-level relationship edge between merchant, backend, production, model, QC, logistics, or other roles.
+
+Planned package objects include:
+
 - **Evidence Asset** — raw or customer-visible quality evidence metadata.
-- **Measurement Profile** — structured measurement data confirmed by the customer.
-- **Digital Human Profile** — proportional body parameters used for fit communication and model-card matching.
-- **Model Try-On Request** — a standard service flow before final delivery.
-- **Shipment Segment** — China domestic, cross-border, and Japan domestic logistics segments.
-- **Supplier Performance Snapshot** — Giraffe JP-specific supplier cooperation memory.
+- **Measurement Profile** — structured measurement data confirmed by the customer or merchant staff.
+- **Digital Human Profile** — proportional body parameters used for fit communication and service matching.
+- **Model Try-On Request** — an optional configurable service flow before final delivery.
+- **Shipment Segment** — origin domestic, cross-border, and destination domestic logistics segments.
+- **Supplier Performance Snapshot** — merchant/package-specific supplier cooperation memory.
 
 ---
 
@@ -150,8 +182,8 @@ Giraffe JP uses P0/P1/P2/P3 priority for service execution.
 Examples of P0 confirmations:
 
 - customer confirms measurements
-- customer confirms price
-- customer confirms delivery commitment
+- merchant confirms quote strategy
+- customer confirms price or delivery commitment
 - supplier confirms order acceptance
 - supplier confirms production cycle
 - supplier submits required QC evidence
@@ -178,13 +210,13 @@ This keeps routine updates efficient while keeping price, delivery commitment, o
 
 The measurement assistant is designed as an independent module or SDK.
 
-The backend stores only structured output:
+The backend should store only structured output:
 
 - height
 - bust / waist / hip
 - shoulder width
 - arm length
-- hollow-to-hem for dresses and bridalwear
+- hollow-to-hem for relevant dress or formalwear categories
 - fit preference
 - coverage preference
 - confidence score
@@ -192,17 +224,7 @@ The backend stores only structured output:
 
 Raw customer measurement videos must not be uploaded to the backend.
 
-The digital human profile is not an entertainment avatar. It is an anonymous, proportional, parameterized body model used for service execution, customer confirmation, supplier communication, and local model-card matching.
-
----
-
-## Local Model Try-On
-
-Local model try-on is a standard Giraffe JP service.
-
-Before final delivery, the garment can be tried on by a local model partner with comparable body parameters. The system records try-on photos/videos, fit notes, customer-visible reports, and customer confirmation.
-
-This service is part of Giraffe JP's trust layer and should be integrated with the evidence repository and service-node engine.
+The digital human profile is not an entertainment avatar. It is an anonymous, proportional, parameterized body model used for service execution, customer confirmation, supplier communication, and model-card or service-partner matching.
 
 ---
 
@@ -234,23 +256,16 @@ The system distinguishes:
 Giraffe JP logistics should be segment-aware:
 
 ```text
-China domestic segment
+origin domestic segment
     ↓
-Cross-border segment
+cross-border / cross-region segment
     ↓
-Japan domestic segment
+destination domestic segment
 ```
 
 The backend is designed to support manual tracking first and future carrier adapters later.
 
-Planned carriers and adapters include:
-
-- Cainiao-style China domestic tracking adapter
-- cross-border EMS-style tracking adapter
-- Japan Post-style domestic tracking adapter
-- manual tracking adapter
-
-No real external API credentials are required for the first backend phase.
+No real external logistics, marketplace, payment, or communication-provider credentials are required for the first backend phase.
 
 ---
 
@@ -283,7 +298,7 @@ No real external API credentials are required for the first backend phase.
 - conversation thread routes (create, list, get)
 - inbound message recording
 - outbound draft creation with auto-send enforcement
-- human approve/reject flow (HTTP 400 on invalid state)
+- human approve/reject flow
 - simulated delivery logging
 - execution graph events: 7 communication event types
 
@@ -296,15 +311,15 @@ No real external API credentials are required for the first backend phase.
 - execution graph events: `FORMALWEAR_ORDER_PROFILE_CREATED`, `FORMALWEAR_ORDER_PROFILE_UPDATED`, `C2B2M_ROLE_EDGE_CREATED`, `C2B2M_DEFAULT_EDGES_INITIALIZED`
 - Alembic migration `d4e5f6a7b8c9` (iter 02/03/04 tables, chained after service-core)
 
-Planned Giraffe JP modules:
+Planned Giraffe JP package modules:
 
 - service node automation templates
 - QC raw evidence repository
 - measurement profile interface
 - digital human profile interface
-- local model try-on service layer
+- configurable local service / model try-on layer
 - segmented logistics records and mock adapters
-- marketplace supplier abstraction
+- marketplace / supplier abstraction
 - Giraffe JP supplier memory extension
 - integrated Giraffe JP E2E readiness scripts
 
@@ -312,7 +327,7 @@ Planned Giraffe JP modules:
 
 ## Existing abcdYi Foundation
 
-Giraffe JP is built on the existing abcdYi apparel execution foundation.
+Giraffe JP is built on the existing abcdYi apparel / textile / handicraft execution foundation.
 
 The base backend already provides:
 
@@ -330,10 +345,10 @@ The base backend already provides:
 - logistics records
 - supplier memory
 - Industrial Execution Graph
-- GPM integration for price benchmark lookup and quote validation
 - GLTG integration for delivery feasibility evaluation
+- pricing and gross-margin control interface planned for future quote validation
 
-Giraffe JP extends these capabilities with Japan-specific formalwear service execution.
+Giraffe JP packages these capabilities into a merchant-deployable C-B-M backend and operating workflow.
 
 ---
 
@@ -490,7 +505,7 @@ GIRAFFE APPAREL & TEXTILE V1 ACCEPTANCE: PASS
 
 This repository is released under the Apache-2.0 software license.
 
-Certain workflows, system logic, role-based participant coordination mechanisms, dynamic order forms, participant matching, production monitoring, quality inspection, participant supervision, supplier memory, pricing benchmark interaction, GPM buffer handoff, and multi-party apparel order-execution workflows in this project may be covered by patents owned by Giraffe Technology Holding Limited.
+Certain workflows, system logic, role-based participant coordination mechanisms, dynamic order forms, participant matching, production monitoring, quality inspection, participant supervision, supplier memory, pricing / gross-margin workflow interfaces, and multi-party apparel order-execution workflows in this project may be covered by patents owned by Giraffe Technology Holding Limited.
 
 abcdYi is the Apparel / Textile / Handicraft industry foundation used by Giraffe JP.
 
