@@ -133,6 +133,28 @@ jobs:
     name: Giraffe JP Backend Tests
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: giraffe
+          POSTGRES_PASSWORD: giraffe
+          POSTGRES_DB: apparel_textile
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U giraffe -d apparel_textile"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://giraffe:giraffe@localhost:5432/apparel_textile
+      ALEMBIC_DATABASE_URL: postgresql+psycopg2://giraffe:giraffe@localhost:5432/apparel_textile
+      SECRET_KEY: ci-test-secret
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+
     steps:
       - uses: actions/checkout@v4
 
@@ -153,8 +175,11 @@ jobs:
       - name: Compile Python files
         run: uv run python -m py_compile *.py
 
+      - name: Run Alembic migrations
+        run: uv run alembic upgrade head
+
       - name: Run Giraffe JP unit tests
         run: uv run pytest tests/unit/test_giraffe_jp_*.py -v
 
       - name: Run Giraffe JP API tests
-        run: uv run pytest tests/api/test_giraffe_jp_*.py -v
+        run: uv run pytest tests/api/test_giraffe_jp_*.py -v --tb=short
