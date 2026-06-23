@@ -128,3 +128,33 @@ jobs:
 
       - name: Run role switching tests
         run: uv run pytest tests/test_mside_role_switching.py -q --tb=short
+
+  giraffe-jp-backend-tests:
+    name: Giraffe JP Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Add pytest
+        run: uv add --dev pytest
+
+      - name: Compile Python files
+        run: uv run python -m py_compile *.py
+
+      - name: Run Giraffe JP unit tests
+        run: uv run pytest tests/unit/test_giraffe_jp_*.py -v
+
+      - name: Run Giraffe JP API tests
+        run: uv run pytest tests/api/test_giraffe_jp_*.py -v
