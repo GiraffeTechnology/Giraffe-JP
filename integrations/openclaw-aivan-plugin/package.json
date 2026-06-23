@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-aivan",
+  "version": "1.0.0",
+  "description": "OpenClaw plugin: routes channel events directly to AIVAN procurement AI, bypassing the built-in LLM layer",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "prebuild": "rm -rf dist"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "aivan",
+    "procurement"
+  ],
+  "openclaw": {
+    "plugin": true,
+    "handlers": [
+      "channel-event-handler"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^5.4.0"
+  }
+}
