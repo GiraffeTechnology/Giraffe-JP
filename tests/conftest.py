@@ -46,18 +46,68 @@ async def seed_user(db):
 
 
 @pytest.fixture
-async def auth_client(client, seed_user):
-    resp = await client.post(
-        "/api/auth/login",
-        data={
-            "username": seed_user["email"],
-            "password": seed_user["password"],
-        },
+async def auth_client(seed_user):
+    # auth_client owns its AsyncClient so it never mutates the shared `client`
+    # fixture.  Tests that request both `client` and any seed fixture that
+    # depends on `auth_client` would otherwise receive an already-authenticated
+    # `client`, breaking unauthenticated-access assertions.
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.post(
+            "/api/auth/login",
+            data={
+                "username": seed_user["email"],
+                "password": seed_user["password"],
+            },
+        )
+        assert resp.status_code == 200, f"Login failed: {resp.text}"
+        token = resp.json()["access_token"]
+        ac.headers["Authorization"] = f"Bearer {token}"
+        yield ac
+
+
+@pytest.fixture
+async def other_seed_user(db):
+    from src.db.models.user import User
+    from src.db.models.tenant import Tenant
+
+    tenant = Tenant(name="Other Tenant", slug=f"other-{uuid.uuid4().hex[:8]}")
+    db.add(tenant)
+    await db.flush()
+
+    email = f"other-{uuid.uuid4().hex[:8]}@example.com"
+    user = User(
+        tenant_id=tenant.id,
+        email=email,
+        hashed_password=hash_password("testpassword"),
     )
-    assert resp.status_code == 200, f"Login failed: {resp.text}"
-    token = resp.json()["access_token"]
-    client.headers["Authorization"] = f"Bearer {token}"
-    return client
+    db.add(user)
+    await db.commit()
+    return {
+        "email": user.email,
+        "password": "testpassword",
+        "user_id": str(user.id),
+        "tenant_id": str(tenant.id),
+    }
+
+
+@pytest.fixture
+async def other_auth_client(other_seed_user):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        resp = await ac.post(
+            "/api/auth/login",
+            data={
+                "username": other_seed_user["email"],
+                "password": other_seed_user["password"],
+            },
+        )
+        assert resp.status_code == 200, f"Other tenant login failed: {resp.text}"
+        token = resp.json()["access_token"]
+        ac.headers["Authorization"] = f"Bearer {token}"
+        yield ac
 
 
 @pytest.fixture
@@ -110,7 +160,7 @@ async def seed_locked_form(auth_client, seed_form):
     return seed_form
 
 
-# ── Iter 4 fixtures ──────────────────────────────────────────────────────────
+# ── Iter 4 fixtures ──────────────────────────────────────────────
 
 @pytest.fixture
 async def seed_project_with_form(auth_client):
@@ -206,7 +256,7 @@ async def seed_sent_rfq(auth_client, seed_rfq):
     return data
 
 
-# ── Iter 5 fixtures ──────────────────────────────────────────────────────────
+# ── Iter 5 fixtures ──────────────────────────────────────────────
 
 @pytest.fixture
 async def seed_rfq_with_responses(auth_client, seed_sent_rfq, seed_participants):
@@ -298,7 +348,7 @@ async def seed_confirmed_order(auth_client, seed_draft_order):
     return resp.json()
 
 
-# ── Iter 6 fixtures ──────────────────────────────────────────────────────────
+# ── Iter 6 fixtures ──────────────────────────────────────────────
 
 @pytest.fixture
 async def seed_in_production_order(auth_client, seed_confirmed_order, db):
@@ -322,7 +372,7 @@ async def seed_qc_order(auth_client, seed_confirmed_order):
     from datetime import datetime, timezone
     order_id = seed_confirmed_order["id"]
     form_version_id = seed_confirmed_order.get("locked_form_version_id")
-    
+
     if form_version_id:
         await auth_client.post(
             f"/api/orders/{order_id}/qc-standards",
@@ -391,11 +441,10 @@ async def seed_delayed_order(auth_client, seed_in_production_order, db):
     from datetime import datetime, timezone, timedelta
     from src.db.models.production import Milestone
     import uuid
-    
+
     milestones = seed_in_production_order.get("milestones", [])
     if milestones:
         ms_id = milestones[0]["id"]
-        past_date = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
         future_date = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
         await auth_client.patch(
             f"/api/milestones/{ms_id}",

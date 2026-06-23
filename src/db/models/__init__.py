@@ -28,6 +28,13 @@ from src.db.models.giraffe_jp import (
     GiraffeJPServiceNode,
     GiraffeJPConfirmationRequest,
     GiraffeJPCustomerServiceTask,
+    GiraffeJPMessageCategoryPermission,
+    GiraffeJPConversationThread,
+    GiraffeJPMessage,
+    GiraffeJPOutboundMessageDraft,
+    GiraffeJPMessageDeliveryLog,
+    GiraffeJPFormalwearOrderProfile,
+    GiraffeJPC2B2MRoleEdge,
 )
 
 # Actor-based (M-side / GLTG role-switching) schema — coexists alongside the
@@ -78,6 +85,10 @@ __all__ = [
     "ExecutionEvent", "UploadedFileMetadata",
     "DeliveryFeasibilityPacketRecord",
     "GiraffeJPServiceNode", "GiraffeJPConfirmationRequest", "GiraffeJPCustomerServiceTask",
+    "GiraffeJPMessageCategoryPermission",
+    "GiraffeJPConversationThread", "GiraffeJPMessage",
+    "GiraffeJPOutboundMessageDraft", "GiraffeJPMessageDeliveryLog",
+    "GiraffeJPFormalwearOrderProfile", "GiraffeJPC2B2MRoleEdge",
     "Actor", "UpstreamApprovalRequest", "Artifact",
     "CADRequirementPacket", "ManufacturingFeatureSet", "CADCNCMatchResult", "CapabilityFitReport",
     "ShopCapabilityProfile",
