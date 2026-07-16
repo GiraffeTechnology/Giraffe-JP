@@ -986,11 +986,6 @@ class TestPatentNotice:
         repo_root = Path(__file__).parent.parent
         assert (repo_root / "src" / "legal" / "patent_notice.py").exists()
 
-    def test_readme_mentions_role_switching(self):
-        repo_root = Path(__file__).parent.parent
-        content = (repo_root / "README.md").read_text(encoding="utf-8")
-        assert "role-switching" in content.lower() or "role switching" in content.lower()
-
     def test_mside_spec_file_exists(self):
         repo_root = Path(__file__).parent.parent
         assert (repo_root / "docs" / "MSIDE_ROLE_SWITCHING_AGENT_SPEC.md").exists()

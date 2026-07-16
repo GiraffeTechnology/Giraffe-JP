@@ -28,9 +28,9 @@ from src.m_side.rollup.supplier_response_rollup import generate_supplier_respons
 from src.m_side.bridge.submit_rollup_to_b_side import submit_rollup_to_b_side
 
 app = FastAPI(
-    title="abcdYi — Giraffe Agent Apparel / Textile / Handicraft Industry Edition",
+    title="Giraffe JP — Merchant-Owned C-B-M Backend Package",
     version="1.0.0",
-    description="Multi-party supply-chain coordination for apparel, textiles, and handicraft-based custom production.",
+    description="Merchant-owned C-B-M backend for custom-order execution, built on Giraffe Agent / abcdYi.",
 )
 
 app.add_middleware(

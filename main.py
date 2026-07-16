@@ -1,4 +1,4 @@
-"""Giraffe Agent helper entry point.
+"""Giraffe JP helper entry point.
 The FastAPI application entry point is:
     api.main:app
 Run the API server with:
@@ -9,7 +9,7 @@ Interactive API docs will be available at:
 
 
 def main() -> None:
-    print("Giraffe Agent")
+    print("Giraffe JP")
     print("FastAPI entry point: api.main:app")
     print("Run: uv run uvicorn api.main:app --reload")
     print("Docs: http://localhost:8000/docs")
