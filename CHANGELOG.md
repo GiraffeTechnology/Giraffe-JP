@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Giraffe Agent are recorded here.
+All notable changes to Giraffe JP are recorded here. Entries below predate the Stage 1 identity fix and describe iterations synced from abcdYi.
 
 ---
 
